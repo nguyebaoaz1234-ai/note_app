@@ -30,5 +30,7 @@ RUN composer install --no-dev --optimize-autoloader
 
 # Cấp quyền đọc ghi cho hệ thống
 # Tạo thư mục chứa ảnh và cấp quyền đọc ghi cho hệ thống
+# Tạo thư mục, CẦU NỐI ẢNH và cấp quyền đọc ghi
 RUN mkdir -p /var/www/html/public/uploads/avatars \
+    && php artisan storage:link \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/uploads
