@@ -1,4 +1,3 @@
-```dockerfile
 # Sử dụng đúng PHP 7.4 mượt mà nhất cho đồ án của em
 FROM php:7.4-apache
 
