@@ -29,4 +29,6 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
 # Cấp quyền đọc ghi cho hệ thống
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+# Tạo thư mục chứa ảnh và cấp quyền đọc ghi cho hệ thống
+RUN mkdir -p /var/www/html/public/uploads/avatars \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/uploads
