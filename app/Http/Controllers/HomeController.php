@@ -41,7 +41,11 @@ class HomeController extends Controller
                     $q->where('labels.id', $label_id);
                 });
             }
-            $notes = $query->orderBy('is_pinned', 'desc')->orderBy('created_at', 'desc')->get();
+            // ĐÃ SỬA: Sắp xếp theo ưu tiên: Ghim -> Thời gian Ghim mới nhất -> Thời gian tạo mới nhất
+            $notes = $query->orderBy('is_pinned', 'desc')
+                           ->orderBy('pinned_at', 'desc')
+                           ->orderBy('created_at', 'desc')
+                           ->get();
         }
 
         // Truyền thêm biến $isSharedPage ra giao diện để ẩn/hiện nút Sửa, Xóa
@@ -126,6 +130,7 @@ class HomeController extends Controller
 
     // ==========================================
     // HÀM XỬ LÝ LƯU CÀI ĐẶT CÁ NHÂN (TIÊU CHÍ 8)
+    // (Đã cập nhật lưu Cỡ chữ và Màu sắc)
     // ==========================================
     public function updatePreferences(\Illuminate\Http\Request $request)
     {
@@ -133,6 +138,17 @@ class HomeController extends Controller
         
         // Nếu công tắc được bật, nó sẽ gửi giá trị '1', ngược lại là '0'
         $user->dark_mode = $request->has('dark_mode') ? 1 : 0;
+        
+        // Bổ sung: Bắt lấy và lưu thông số Cỡ chữ Ghi chú
+        if ($request->has('note_font_size')) {
+            $user->note_font_size = $request->note_font_size;
+        }
+        
+        // Bổ sung: Bắt lấy và lưu thông số Màu nền Ghi chú
+        if ($request->has('note_color')) {
+            $user->note_color = $request->note_color;
+        }
+
         $user->save();
 
         return redirect()->back()->with('success', 'Đã lưu Cài đặt cá nhân thành công!');

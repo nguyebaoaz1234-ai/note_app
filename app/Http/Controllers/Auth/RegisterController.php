@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth; // Thầy bổ sung thư viện Auth ở đây
 
 class RegisterController extends Controller
 {
@@ -51,16 +52,20 @@ class RegisterController extends Controller
     }
 
     // ========================================================
-    // HÀM NÀY SẼ CHẶN ĐỨNG VIỆC LARAVEL TỰ ĐỘNG ĐĂNG NHẬP
+    // ĐÃ CHỈNH SỬA: TỰ ĐỘNG ĐĂNG NHẬP SAU KHI ĐĂNG KÝ
+    // (Cập nhật theo mục 2.1 Account Management)
     // ========================================================
     public function register(Request $request)
     {
         $this->validator($request->all())->validate();
         
-        // Chỉ tạo User và gửi Mail, KHÔNG login
-        $this->create($request->all());
+        // Tạo User, gửi Mail và HỨNG LẤY biến $user vừa tạo
+        $user = $this->create($request->all());
 
-        // Đẩy ra trang đăng nhập và báo thông báo màu đỏ
-        return redirect('/login')->with('warning', 'Đăng ký thành công! Vui lòng kiểm tra hộp thư đến (hoặc thư rác) để lấy link kích hoạt.');
+        // Tự động đăng nhập ngay lập tức cho user này
+        Auth::login($user);
+
+        // Chuyển hướng thẳng vào trang chủ (Biển báo màu vàng ở Bước 3 sẽ đón người dùng ở đây)
+        return redirect($this->redirectTo);
     }
 }

@@ -16,7 +16,9 @@ public function labels() {
 }
 
 public function sharedUsers() {
-        return $this->belongsToMany('App\User', 'note_user', 'note_id', 'user_id');
+    return $this->belongsToMany('App\User', 'note_user', 'note_id', 'user_id')
+                ->withPivot('permission')
+                ->withTimestamps();
 }
 
 // Bổ sung hàm này để Ghi chú nhận diện được Chủ sở hữu (Người gửi)

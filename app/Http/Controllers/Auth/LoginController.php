@@ -19,10 +19,13 @@ class LoginController extends Controller
     }
 
     // ========================================================
-    // BẢO VỆ CỔNG: CHẶN TÀI KHOẢN CHƯA KÍCH HOẠT (TIÊU CHÍ 2)
+    // ĐÃ MỞ CỔNG: CHO PHÉP TÀI KHOẢN CHƯA KÍCH HOẠT ĐĂNG NHẬP 
+    // (Cập nhật theo mục 2.1 Account Management)
     // ========================================================
     protected function authenticated(Request $request, $user)
     {
+        // Thầy đã comment (vô hiệu hóa) đoạn code chặn người dùng dưới đây
+        /*
         // Nếu cột is_active trong Database vẫn bằng 0 (Chưa click link trong mail)
         if ($user->is_active == 0) {
             
@@ -31,5 +34,9 @@ class LoginController extends Controller
             // Trả về trang đăng nhập kèm theo dòng chữ cảnh báo màu đỏ
             return redirect('/login')->with('warning', 'Tài khoản của bạn chưa được kích hoạt! Vui lòng kiểm tra Email để lấy link.');
         }
+        */
+        
+        // Hiện tại hàm này được để trống. Laravel sẽ tự động cho phép người dùng đăng nhập 
+        // và chuyển hướng họ đến đường dẫn $redirectTo (tức là /home).
     }
 }

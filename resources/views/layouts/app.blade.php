@@ -116,7 +116,7 @@
 </head>
 <body>
     <div id="app">
-        <nav class="navbar navbar-default navbar-static-top" role="navigation" aria-label="Main Navigation">
+        <nav class="navbar navbar-default navbar-static-top" role="navigation" aria-label="Main Navigation" style="margin-bottom: 0;">
             <div class="container">
                 <div class="navbar-header">
 
@@ -181,6 +181,16 @@
                 </div>
             </div>
         </nav>
+
+        <!-- ======================================================== -->
+        <!-- CHÈN BIỂN BÁO NHẮC NHỞ TÀI KHOẢN CHƯA KÍCH HOẠT VÀO ĐÂY  -->
+        <!-- ======================================================== -->
+        @if (Auth::check() && Auth::user()->is_active == 0)
+            <div class="alert alert-warning text-center" style="margin-bottom: 20px; border-radius: 0; background-color: #fff3cd; color: #856404; padding: 15px; border: none; border-bottom: 1px solid #ffeeba;">
+                <i class="fas fa-exclamation-triangle" style="margin-right: 5px;"></i>
+                <strong>Tài khoản chưa xác thực!</strong> Bạn vẫn có thể sử dụng toàn bộ tính năng, nhưng vui lòng kiểm tra Email để hoàn tất quá trình kích hoạt tài khoản nhé.
+            </div>
+        @endif
 
         <main id="main-content" role="main">
             @yield('content')

@@ -8,6 +8,7 @@ use App\NoteAttachment;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage; 
 
 class NoteController extends Controller
 {
@@ -18,8 +19,8 @@ class NoteController extends Controller
     public function store(Request $request) {
         $this->validate($request, [
             'title' => 'nullable|max:191',
-            'content' => 'required',
-            'image' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
+            'content' => 'nullable', 
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $note = new Note();
@@ -28,50 +29,79 @@ class NoteController extends Controller
         $note->content = $request->input('content');
         $note->save();
 
-        // LƯU NHÃN ĐÍNH KÈM (TIÊU CHÍ 19)
-        if ($request->has('labels')) {
-            $note->labels()->attach($request->labels);
+        if ($request->has('labels')) { $note->labels()->attach($request->labels); }
+
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('public/notes');
+                $attachment = new NoteAttachment();
+                $attachment->note_id = $note->id;
+                $attachment->file_path = $path;
+                $attachment->save();
+            }
         }
 
-        if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('public/notes');
-            $attachment = new NoteAttachment();
-            $attachment->note_id = $note->id;
-            $attachment->file_path = $path;
-            $attachment->save();
-        }
-
+        if ($request->ajax()) { return response()->json(['success' => true]); }
         return redirect()->back()->with('success', 'Đã lưu ghi chú thành công!');
     }
 
     public function update(Request $request, $id) {
         $this->validate($request, [
             'title' => 'nullable|max:191',
-            'content' => 'required',
+            'content' => 'nullable', 
+            'images.*' => 'nullable|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $note = Note::findOrFail($id);
+        
+        // Cấp quyền Edit qua Real-time
+        $isShared = $note->sharedUsers->contains(Auth::id());
+        if ($isShared) {
+            $pivot = $note->sharedUsers->where('id', Auth::id())->first()->pivot;
+            if ($pivot->permission !== 'edit') {
+                return response()->json(['success' => false, 'message' => 'Bạn chỉ có quyền xem!'], 403);
+            }
+        }
+
         $note->title = $request->input('title');
         $note->content = $request->input('content');
         $note->save();
 
-        // CẬP NHẬT NHÃN KÈM THEO (AUTO-SAVE)
         if ($request->has('labels')) {
             $note->labels()->sync($request->labels);
         } else {
-            $note->labels()->detach(); // Nếu bỏ tick hết thì gỡ sạch nhãn
+            $note->labels()->detach(); 
         }
 
-        if ($request->ajax()) {
-            return response()->json(['success' => true]);
+        if ($request->has('deleted_images')) {
+            $attachmentsToDelete = NoteAttachment::whereIn('id', $request->deleted_images)->where('note_id', $note->id)->get();
+            foreach($attachmentsToDelete as $att) {
+                Storage::delete($att->file_path);
+                $att->delete();
+            }
         }
 
+        if ($request->hasFile('images')) {
+            foreach ($request->file('images') as $file) {
+                $path = $file->store('public/notes');
+                $attachment = new NoteAttachment();
+                $attachment->note_id = $note->id;
+                $attachment->file_path = $path;
+                $attachment->save();
+            }
+        }
+
+        if ($request->ajax()) { return response()->json(['success' => true]); }
         return redirect()->back();
     }
 
     public function destroy($id) {
         $note = Note::findOrFail($id);
-        $note->labels()->detach(); // Cắt đứt quan hệ nhãn trước khi xóa
+        foreach($note->attachments as $att) {
+            Storage::delete($att->file_path);
+            $att->delete();
+        }
+        $note->labels()->detach(); 
         $note->delete();
         return redirect()->back();
     }
@@ -79,41 +109,31 @@ class NoteController extends Controller
     public function togglePin($id) {
         $note = Note::findOrFail($id);
         $note->is_pinned = !$note->is_pinned;
+        if ($note->is_pinned) { $note->pinned_at = \Carbon\Carbon::now(); } 
+        else { $note->pinned_at = null; }
         $note->save();
         return response()->json(['success' => true]);
     }
 
     // ==========================================
-    // HÀM BẢO MẬT: CÀI/GỠ MẬT KHẨU (TIÊU CHÍ 21)
+    // BẢO MẬT & QUẢN LÝ CHIA SẺ NÂNG CAO (TIÊU CHÍ 2.3)
     // ==========================================
     public function setPassword(Request $request, $id) {
-        // Tìm ghi chú thuộc về người dùng đang đăng nhập
         $note = Note::where('user_id', Auth::id())->findOrFail($id);
-        
         $isChanging = $note->password ? true : false;
 
         if ($request->password) {
-            // Mã hóa mật khẩu mới
             $note->password = Hash::make($request->password);
             $message = $isChanging ? 'Đã đổi mật khẩu thành công!' : 'Đã cài đặt mật khẩu thành công!';
         } else {
-            // Nếu gửi dữ liệu trống -> Gỡ bỏ bảo vệ
             $note->password = null;
             $message = 'Đã gỡ bỏ mật khẩu bảo vệ!';
         }
-        
         $note->save();
-
-        // Sau khi đổi/gỡ mật khẩu, bắt buộc khóa lại để yêu cầu nhập mật khẩu mới ở lần sau
         Session::forget('unlocked_' . $note->id);
-        
-        return response()->json([
-            'success' => true,
-            'message' => $message
-        ]);
+        return response()->json(['success' => true, 'message' => $message]);
     }
 
-    // THÊM HÀM NÀY: Dùng để chủ động "Khóa lại" khi đang xem
     public function lock($id) {
         Session::forget('unlocked_' . $id);
         return response()->json(['success' => true]);
@@ -121,63 +141,74 @@ class NoteController extends Controller
 
     public function unlock(Request $request, $id) {
         $note = Note::findOrFail($id);
-        
-        // So sánh mật khẩu người dùng nhập với mật khẩu đã mã hóa trong DB
         if (Hash::check($request->password, $note->password)) {
-            // Mở khóa thành công -> Cấp một "thẻ thông hành" lưu vào Session
             Session::put('unlocked_' . $note->id, true);
             return response()->json(['success' => true]);
         }
-        
         return response()->json(['success' => false, 'message' => 'Mật khẩu không chính xác!']);
     }
 
-    // ==========================================
-    // CHIA SẺ GHI CHÚ (TIÊU CHÍ 23)
-    // ==========================================
+    // Tính năng Share Nâng cao: Đa người dùng + Quyền
     public function share(Request $request, $id) {
         $note = Note::where('user_id', Auth::id())->findOrFail($id);
+        $emails = explode(',', $request->emails);
+        $permission = $request->input('permission', 'read'); // read hoặc edit
+        $successCount = 0;
+        $errors = [];
+
+        foreach($emails as $email) {
+            $email = trim($email);
+            if(empty($email)) continue;
+            $receiver = \App\User::where('email', $email)->first();
+
+            if (!$receiver) { $errors[] = "Không có email: $email"; continue; }
+            if ($receiver->id == $note->user_id) { continue; }
+            
+            // Dùng syncWithoutDetaching để tránh xóa người cũ
+            $note->sharedUsers()->syncWithoutDetaching([$receiver->id => ['permission' => $permission]]);
+            $successCount++;
+        }
         
-        // Tìm người dùng qua email
-        $receiver = \App\User::where('email', $request->email)->first();
-
-        if (!$receiver) {
-            return response()->json(['success' => false, 'message' => '❌ Không tìm thấy người dùng với Email này!']);
-        }
-        if ($receiver->id == $note->user_id) {
-            return response()->json(['success' => false, 'message' => '⚠️ Bạn không thể tự chia sẻ cho chính mình!']);
-        }
-        if ($note->sharedUsers->contains($receiver->id)) {
-            return response()->json(['success' => false, 'message' => '⚠️ Ghi chú này đã được chia sẻ cho người này rồi!']);
-        }
-
-        // Thực hiện kết nối
-        $note->sharedUsers()->attach($receiver->id);
-        return response()->json(['success' => true, 'message' => '✅ Đã chia sẻ ghi chú thành công!']);
+        $errorMsg = count($errors) > 0 ? " | Lỗi: " . implode(', ', $errors) : "";
+        return response()->json(['success' => true, 'message' => "Đã chia sẻ cho $successCount người. $errorMsg"]);
     }
 
-    // ==========================================
-    // API LẤY DỮ LIỆU REAL-TIME (TIÊU CHÍ 24)
-    // ==========================================
+    // Lấy danh sách người đang được chia sẻ
+    public function getSharedUsers($id) {
+        $note = Note::where('user_id', Auth::id())->findOrFail($id);
+        $users = $note->sharedUsers()->select('users.id', 'users.email', 'note_user.permission', 'note_user.created_at')->get();
+        
+        // Format lại thời gian sang giờ Việt Nam (UTC+7) trước khi trả về
+        $users->transform(function ($user) {
+            $user->formatted_time = \Carbon\Carbon::parse($user->created_at)->timezone('Asia/Ho_Chi_Minh')->format('H:i d/m/Y');
+            return $user;
+        });
+
+        return response()->json($users);
+    }
+
+    // Thay đổi quyền (Read -> Edit hoặc ngược lại)
+    public function updateSharePermission(Request $request, $id) {
+        $note = Note::where('user_id', Auth::id())->findOrFail($id);
+        $note->sharedUsers()->updateExistingPivot($request->user_id, ['permission' => $request->permission]);
+        return response()->json(['success' => true]);
+    }
+
+    // Thu hồi quyền chia sẻ
+    public function revokeShare(Request $request, $id) {
+        $note = Note::where('user_id', Auth::id())->findOrFail($id);
+        $note->sharedUsers()->detach($request->user_id);
+        return response()->json(['success' => true]);
+    }
+
     public function getNoteData($id) {
         $note = Note::findOrFail($id);
-        return response()->json([
-            'title' => $note->title,
-            'content' => $note->content
-        ]);
+        return response()->json(['title' => $note->title, 'content' => $note->content]);
     }
 
-    // ==========================================
-    // TỪ CHỐI/XÓA GHI CHÚ ĐƯỢC CHIA SẺ
-    // ==========================================
     public function removeShared($id) {
-        // Thay vì dùng Auth::user(), gọi trực tiếp Model User để VS Code hiểu được hàm sharedNotes()
         $user = \App\User::find(Auth::id());
-        
-        // Chỉ dùng lệnh detach() để xóa liên kết trong bảng trung gian note_user
-        // Hoàn toàn KHÔNG đụng chạm đến dữ liệu gốc trong bảng notes
         $user->sharedNotes()->detach($id);
-        
         return redirect()->back();
     }
 }

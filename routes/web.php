@@ -82,3 +82,7 @@ Route::post('/profile/preferences', 'HomeController@updatePreferences')->name('p
 Route::get('/offline', function () {
     return view('offline');
 });
+// CÁC ROUTE API DÀNH CHO QUẢN LÝ CHIA SẺ (TIÊU CHÍ 2.3)
+Route::get('/notes/{id}/shared-users', 'NoteController@getSharedUsers');
+Route::post('/notes/{id}/update-share', 'NoteController@updateSharePermission');
+Route::post('/notes/{id}/revoke-share', 'NoteController@revokeShare');

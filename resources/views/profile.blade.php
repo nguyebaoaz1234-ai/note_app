@@ -73,6 +73,7 @@
                 </div>
             </div>
 
+            <!-- PANEL CÀI ĐẶT CÁ NHÂN -->
             <div class="panel panel-default" style="box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-radius: 16px; border: none; margin-top: 20px;">
                 <div class="panel-heading" style="background-color: #f8f9fa; border-radius: 16px 16px 0 0; border-bottom: 1px solid #eee; padding: 15px 30px;">
                     <h4 style="margin: 0; font-weight: bold; color: #202124;"><i class="fas fa-cog"></i> Cài đặt cá nhân</h4>
@@ -81,6 +82,8 @@
                     
                     <form action="{{ route('profile.preferences') }}" method="POST">
                         {{ csrf_field() }}
+                        
+                        <!-- 1. Cài đặt Dark Mode -->
                         <div style="display: flex; align-items: center; justify-content: space-between;">
                             <div>
                                 <strong style="color: #202124; font-size: 16px;">Chế độ ban đêm (Dark Mode)</strong>
@@ -93,6 +96,38 @@
                                 </label>
                             </div>
                         </div>
+
+                        <hr style="margin: 20px 0; border-color: #eee;">
+
+                        <!-- 2. Cài đặt Cỡ chữ (BỔ SUNG) -->
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: #202124; font-size: 16px;">Cỡ chữ Ghi chú</strong>
+                                <p style="color: #5f6368; font-size: 13px; margin: 5px 0 0 0;">Điều chỉnh kích thước chữ hiển thị trong ghi chú</p>
+                            </div>
+                            <div>
+                                <select name="note_font_size" class="form-control" style="width: 130px; border-radius: 8px; border: 1px solid #ddd; box-shadow: none; font-weight: bold;" onchange="this.form.submit()">
+                                    <option value="12px" {{ $user->note_font_size == '12px' ? 'selected' : '' }}>Nhỏ (12px)</option>
+                                    <option value="14px" {{ $user->note_font_size == '14px' || !$user->note_font_size ? 'selected' : '' }}>Vừa (14px)</option>
+                                    <option value="16px" {{ $user->note_font_size == '16px' ? 'selected' : '' }}>Lớn (16px)</option>
+                                    <option value="18px" {{ $user->note_font_size == '18px' ? 'selected' : '' }}>Rất lớn (18px)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <hr style="margin: 20px 0; border-color: #eee;">
+
+                        <!-- 3. Cài đặt Màu sắc Ghi chú (BỔ SUNG) -->
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="color: #202124; font-size: 16px;">Màu Ghi chú mặc định</strong>
+                                <p style="color: #5f6368; font-size: 13px; margin: 5px 0 0 0;">Chọn màu nền mặc định khi tạo ghi chú mới</p>
+                            </div>
+                            <div>
+                                <input type="color" name="note_color" class="form-control" value="{{ $user->note_color ? $user->note_color : '#fff9c4' }}" style="width: 60px; height: 35px; padding: 2px; border-radius: 8px; border: 1px solid #ddd; cursor: pointer;" onchange="this.form.submit()">
+                            </div>
+                        </div>
+
                     </form>
 
                 </div>
