@@ -1,7 +1,7 @@
 # Nâng cấp nhẹ lên PHP 7.4 để có chìa khóa bảo mật thế hệ mới
 FROM php:7.4-apache
 
-# Cài đặt các phần mềm phụ trợ & Database (Code gọn hơn vì PHP 7.4 không bị lỗi kho lưu trữ)
+# Cài đặt các phần mềm phụ trợ & Database
 RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
     && docker-php-ext-install pdo_mysql gd zip
 
@@ -12,9 +12,9 @@ RUN a2enmod rewrite
 WORKDIR /var/www/html
 COPY . /var/www/html
 
-# Cài đặt thư viện bằng Composer
+# Cài đặt thư viện bằng Composer (PHỚT LỜ KIỂM TRA PHIÊN BẢN PHP)
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
 # Tạo thư mục ảnh, nối Link Storage và cấp quyền đọc ghi
 RUN mkdir -p /var/www/html/public/uploads/avatars \
