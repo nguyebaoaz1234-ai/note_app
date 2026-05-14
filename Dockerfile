@@ -32,9 +32,13 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # ==============================================================================
-# BÍ KÍP RAILWAY: Tự động bắt đúng Cổng mà hệ thống cấp phát
-# Tuyệt đối không can thiệp vào MPM nữa để Apache chạy mượt mà tự nhiên!
+# BÍ KÍP TỐI THƯỢNG (Khởi động Runtime)
+# 1. Ép vô hiệu hóa mpm_event & mpm_worker, sau đó ép bật mpm_prefork
+# 2. Tự động lắng nghe đúng PORT mà Railway cấp phát
+# 3. Khởi động Apache
 # ==============================================================================
-CMD sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf \
+CMD a2dismod mpm_event mpm_worker || true; \
+    a2enmod mpm_prefork || true; \
+    sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf \
     && sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf \
     && apache2-foreground
