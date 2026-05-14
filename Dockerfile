@@ -8,9 +8,6 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 # Bật tính năng điều hướng
 RUN a2enmod rewrite
 
-# Sửa lỗi cảnh báo ServerName của Apache
-RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
-
 # Thiết lập thư mục làm việc và Copy code
 WORKDIR /var/www/html
 COPY . /var/www/html
@@ -30,16 +27,20 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # ==============================================================================
-# BÍ KÍP CHỐNG LẠC ĐƯỜNG: Ghi đè tuyệt đối cổng mạng để khớp 100% với Railway
+# CẮM BIỂN BÁO CHO RAILWAY BIẾT MÁY CHỦ CHẠY CỔNG 80
 # ==============================================================================
+EXPOSE 80
+
+# Kịch bản khởi động (Chốt cứng cổng 80 và diệt MPM)
 RUN echo '#!/bin/bash\n\
 php artisan config:clear\n\
 php artisan migrate --force\n\
 rm -f /etc/apache2/mods-enabled/mpm_event.*\n\
 rm -f /etc/apache2/mods-enabled/mpm_worker.*\n\
 a2enmod mpm_prefork || true\n\
-echo "Listen 0.0.0.0:${PORT:-80}" > /etc/apache2/ports.conf\n\
-sed -i "s/<VirtualHost .*/<VirtualHost \*:${PORT:-80}>/g" /etc/apache2/sites-available/000-default.conf\n\
+echo "ServerName localhost" >> /etc/apache2/apache2.conf\n\
+echo "Listen 80" > /etc/apache2/ports.conf\n\
+sed -i "s/<VirtualHost .*/<VirtualHost \*:80>/g" /etc/apache2/sites-available/000-default.conf\n\
 exec apache2-foreground' > /start.sh && chmod +x /start.sh
 
 CMD ["/start.sh"]
