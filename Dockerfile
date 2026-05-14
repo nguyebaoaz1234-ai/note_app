@@ -1,4 +1,4 @@
-# Nâng cấp nhẹ lên PHP 7.4 để có chìa khóa bảo mật thế hệ mới
+# Nâng cấp lên PHP 7.4 để tương thích với MySQL 9.4
 FROM php:7.4-apache
 
 # Cài đặt các phần mềm phụ trợ & Database
@@ -7,6 +7,13 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 
 # Bật tính năng điều hướng (Rewrite) cho Laravel
 RUN a2enmod rewrite
+
+# ==============================================================================
+# LỚP KHIÊN BẢO VỆ APACHE: Tiêu diệt triệt để lỗi "More than one MPM loaded"
+# ==============================================================================
+RUN rm -f /etc/apache2/mods-enabled/mpm_event.load \
+    && rm -f /etc/apache2/mods-enabled/mpm_worker.load \
+    && a2enmod mpm_prefork
 
 # Thiết lập thư mục làm việc và Copy code vào
 WORKDIR /var/www/html
