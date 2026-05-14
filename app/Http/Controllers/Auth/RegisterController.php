@@ -7,9 +7,9 @@ use App\Http\Controllers\Controller;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Auth; // Thầy bổ sung thư viện Auth ở đây
+use Illuminate\Support\Facades\Auth; 
+// Đã xóa thư viện Http gây lỗi ở đây
 
 class RegisterController extends Controller
 {
@@ -36,11 +36,35 @@ class RegisterController extends Controller
         $token = Str::random(40); // Tạo chuỗi ngẫu nhiên 40 ký tự
         $activationLink = url('/activate/' . $token); // Tạo link kích hoạt
         
-        // GỬI EMAIL THỰC TẾ
-        Mail::send('emails.activation', ['link' => $activationLink], function ($message) use ($data) {
-            $message->to($data['email'], $data['name'])
-                    ->subject('Vui lòng kích hoạt tài khoản Ghi chú của bạn!');
-        });
+        // ========================================================
+        // GỬI MAIL QUA GOOGLE APPS SCRIPT BẰNG PHP THUẦN
+        // ========================================================
+        
+        // 1. Dịch giao diện email thành mã HTML
+        $htmlContent = view('emails.activation', ['link' => $activationLink])->render();
+
+        // 2. Đóng gói dữ liệu thành chuẩn JSON
+        $postData = json_encode([
+            'to' => $data['email'],
+            'subject' => 'Vui lòng kích hoạt tài khoản Ghi chú của bạn!',
+            'body' => $htmlContent
+        ]);
+
+        // 3. Cấu hình luồng bắn dữ liệu HTTP POST
+        $options = [
+            'http' => [
+                'header'  => "Content-type: application/json\r\n",
+                'method'  => 'POST',
+                'content' => $postData,
+            ]
+        ];
+        $context  = stream_context_create($options);
+
+        // 4. Bắn dữ liệu thẳng sang Webhook của Google (Thêm @ để bỏ qua cảnh báo nếu mạng lag)
+        $gasUrl = env('GAS_MAIL_URL');
+        if ($gasUrl) {
+            @file_get_contents($gasUrl, false, $context);
+        }
 
         return User::create([
             'name' => $data['name'],
@@ -52,8 +76,7 @@ class RegisterController extends Controller
     }
 
     // ========================================================
-    // ĐÃ CHỈNH SỬA: TỰ ĐỘNG ĐĂNG NHẬP SAU KHI ĐĂNG KÝ
-    // (Cập nhật theo mục 2.1 Account Management)
+    // TỰ ĐỘNG ĐĂNG NHẬP SAU KHI ĐĂNG KÝ
     // ========================================================
     public function register(Request $request)
     {
@@ -65,7 +88,7 @@ class RegisterController extends Controller
         // Tự động đăng nhập ngay lập tức cho user này
         Auth::login($user);
 
-        // Chuyển hướng thẳng vào trang chủ (Biển báo màu vàng ở Bước 3 sẽ đón người dùng ở đây)
+        // Chuyển hướng thẳng vào trang chủ
         return redirect($this->redirectTo);
     }
 }
