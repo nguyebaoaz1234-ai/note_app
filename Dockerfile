@@ -6,19 +6,20 @@ RUN echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.l
     && echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list \
     && echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until
 
-# Cài đặt các phần mềm phụ trợ và thư viện PHP
-RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git
-RUN docker-php-ext-install pdo_mysql gd zip
+# Cài đặt các phần mềm phụ trợ
+RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
+    && docker-php-ext-install pdo_mysql gd zip
 
 # Bật tính năng điều hướng của Apache
 RUN a2enmod rewrite
 
 # =========================================================================
-# CHỮA LỖI XUNG ĐỘT ĐỘNG CƠ APACHE TRÊN RAILWAY (LỖI CRASHED AH00534)
+# XÓA TẬN GỐC LỖI MPM CRASHED (Xóa các file load thừa, ép dùng prefork)
 # =========================================================================
-RUN a2dismod mpm_event mpm_worker || true && a2enmod mpm_prefork
+RUN rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf \
+    && a2enmod mpm_prefork
 
-# Ép máy chủ trỏ thẳng vào thư mục public (Bảo mật tuyệt đối, không cần .htaccess ngoài)
+# Ép máy chủ trỏ thẳng vào thư mục public (Bảo mật tuyệt đối)
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
@@ -30,7 +31,10 @@ COPY . /var/www/html
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
-# Tạo thư mục, CẦU NỐI ẢNH và cấp quyền đọc ghi cho hệ thống
+# Tạo thư mục chứa ảnh, CẦU NỐI ẢNH và cấp quyền đọc ghi cho hệ thống
 RUN mkdir -p /var/www/html/public/uploads/avatars \
     && php artisan storage:link \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/uploads
+
+# Báo cho Railway biết ứng dụng chạy ở cổng 80
+EXPOSE 80
