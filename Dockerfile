@@ -8,9 +8,7 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 # Bật tính năng điều hướng (Rewrite) cho Laravel
 RUN a2enmod rewrite
 
-# ==============================================================================
-# LỚP KHIÊN BẢO VỆ APACHE: Tiêu diệt triệt để lỗi "More than one MPM loaded"
-# ==============================================================================
+# Tiêu diệt MPM thừa để tránh lỗi Crash
 RUN rm -f /etc/apache2/mods-enabled/mpm_event.load \
     && rm -f /etc/apache2/mods-enabled/mpm_worker.load \
     && a2enmod mpm_prefork
@@ -34,14 +32,13 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # ==============================================================================
-# COMBO CHỐT HẠ: Xóa MPM thừa -> Ép IP chuẩn 0.0.0.0 -> Bật Web
+# BÍ KÍP CUỐI CÙNG: Tạo kịch bản khởi động chuẩn xác 100%
 # ==============================================================================
-CMD php artisan config:clear ; \
-    php artisan migrate --force ; \
-    rm -f /etc/apache2/mods-enabled/mpm_event.* ; \
-    rm -f /etc/apache2/mods-enabled/mpm_worker.* ; \
-    a2enmod mpm_prefork ; \
-    echo "ServerName localhost" >> /etc/apache2/apache2.conf ; \
-    sed -i "s/Listen 80/Listen 0.0.0.0:${PORT:-8080}/g" /etc/apache2/ports.conf ; \
-    sed -i "s/:80/:${PORT:-8080}/g" /etc/apache2/sites-available/000-default.conf ; \
-    apache2-foreground
+RUN echo '#!/bin/bash\n\
+php artisan config:clear\n\
+php artisan migrate --force\n\
+sed -i "s/Listen 80/Listen ${PORT:-8080}/g" /etc/apache2/ports.conf\n\
+sed -i "s/:80/:${PORT:-8080}/g" /etc/apache2/sites-available/000-default.conf\n\
+exec apache2-foreground' > /start.sh && chmod +x /start.sh
+
+CMD ["/start.sh"]
