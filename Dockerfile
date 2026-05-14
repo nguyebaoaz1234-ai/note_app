@@ -13,13 +13,6 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 # Bật tính năng điều hướng (Rewrite) cho Laravel
 RUN a2enmod rewrite
 
-# ==============================================================================
-# LỚP KHIÊN 1: FIX LỖI MPM CRASHED (Xóa triệt để động cơ thừa, chỉ dùng prefork)
-# ==============================================================================
-RUN rm -f /etc/apache2/mods-enabled/mpm_event.load \
-    && rm -f /etc/apache2/mods-enabled/mpm_worker.load \
-    && a2enmod mpm_prefork
-
 # Thiết lập thư mục làm việc và Copy code vào
 WORKDIR /var/www/html
 COPY . /var/www/html
@@ -39,7 +32,8 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # ==============================================================================
-# LỚP KHIÊN 2: BÍ KÍP RAILWAY (Tự động bắt đúng Cổng mà hệ thống cấp phát)
+# BÍ KÍP RAILWAY: Tự động bắt đúng Cổng mà hệ thống cấp phát
+# Tuyệt đối không can thiệp vào MPM nữa để Apache chạy mượt mà tự nhiên!
 # ==============================================================================
 CMD sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf \
     && sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf \
