@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 1. Dọn dẹp cache và khởi tạo Database
+# 1. Khởi tạo Database
 php artisan config:clear
 php artisan migrate --force
 
@@ -9,14 +9,26 @@ rm -f /etc/apache2/mods-enabled/mpm_event.*
 rm -f /etc/apache2/mods-enabled/mpm_worker.*
 a2enmod mpm_prefork || true
 
-# 3. Cấu hình cổng mạng linh hoạt theo Railway
-echo "ServerName localhost" >> /etc/apache2/apache2.conf
-
-# Bắt biến PORT từ Railway, nếu không có thì dùng tạm 8080
+# 3. Bắt cổng động của Railway (Nếu không có thì dùng 8080)
 TARGET_PORT=${PORT:-8080}
 
+# 4. Đập đi xây mới toàn bộ cấu hình mạng của Apache
+echo "ServerName localhost" >> /etc/apache2/apache2.conf
 echo "Listen 0.0.0.0:$TARGET_PORT" > /etc/apache2/ports.conf
-sed -i "s/<VirtualHost .*/<VirtualHost *:$TARGET_PORT>/g" /etc/apache2/sites-available/000-default.conf
 
-# 4. Khởi động máy chủ Apache
+cat <<EOF > /etc/apache2/sites-available/000-default.conf
+<VirtualHost *:$TARGET_PORT>
+    DocumentRoot /var/www/html/public
+
+    <Directory /var/www/html/public>
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/error.log
+    CustomLog \${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+EOF
+
+# 5. Khởi động máy chủ Apache
 exec apache2-foreground
