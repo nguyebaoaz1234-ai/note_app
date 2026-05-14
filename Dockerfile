@@ -6,15 +6,17 @@ RUN echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.l
     && echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list \
     && echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until
 
-# Cài đặt các phần mềm phụ trợ
-RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git
-
-# Cài đặt các phần mềm phụ trợ
+# Cài đặt các phần mềm phụ trợ và thư viện PHP
 RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git
 RUN docker-php-ext-install pdo_mysql gd zip
 
 # Bật tính năng điều hướng của Apache
 RUN a2enmod rewrite
+
+# =========================================================================
+# CHỮA LỖI XUNG ĐỘT ĐỘNG CƠ APACHE TRÊN RAILWAY (LỖI CRASHED AH00534)
+# =========================================================================
+RUN a2dismod mpm_event mpm_worker || true && a2enmod mpm_prefork
 
 # Ép máy chủ trỏ thẳng vào thư mục public (Bảo mật tuyệt đối, không cần .htaccess ngoài)
 ENV APACHE_DOCUMENT_ROOT /var/www/html/public
@@ -28,9 +30,7 @@ COPY . /var/www/html
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
-# Cấp quyền đọc ghi cho hệ thống
-# Tạo thư mục chứa ảnh và cấp quyền đọc ghi cho hệ thống
-# Tạo thư mục, CẦU NỐI ẢNH và cấp quyền đọc ghi
+# Tạo thư mục, CẦU NỐI ẢNH và cấp quyền đọc ghi cho hệ thống
 RUN mkdir -p /var/www/html/public/uploads/avatars \
     && php artisan storage:link \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/uploads
