@@ -1,7 +1,7 @@
-# Sử dụng đúng PHP 7.2 mượt mà nhất cho đồ án của em
+# Sử dụng PHP 7.2
 FROM php:7.2-apache
 
-# Cập nhật đường dẫn tải phần mềm sang kho lưu trữ cũ (Sửa lỗi 404 Debian Buster)
+# Cập nhật đường dẫn tải phần mềm sang kho lưu trữ cũ (Sửa lỗi 404)
 RUN echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.list \
     && echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list \
     && echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until
@@ -10,31 +10,23 @@ RUN echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.l
 RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
     && docker-php-ext-install pdo_mysql gd zip
 
-# Bật tính năng điều hướng của Apache
-RUN a2enmod rewrite
+# Thiết lập thư mục làm việc
+WORKDIR /var/www/html
 
-# =========================================================================
-# XÓA TẬN GỐC LỖI MPM CRASHED (Xóa các file load thừa, ép dùng prefork)
-# =========================================================================
-RUN rm -f /etc/apache2/mods-enabled/mpm_*.load /etc/apache2/mods-enabled/mpm_*.conf \
-    && a2enmod mpm_prefork
-
-# Ép máy chủ trỏ thẳng vào thư mục public (Bảo mật tuyệt đối)
-ENV APACHE_DOCUMENT_ROOT /var/www/html/public
-RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
-RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
-
-# Copy toàn bộ code của em vào máy chủ
+# Copy toàn bộ code vào Container
 COPY . /var/www/html
 
-# Tự động tải thư mục Vendor
+# Cài đặt thư viện bằng Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 RUN composer install --no-dev --optimize-autoloader
 
-# Tạo thư mục chứa ảnh, CẦU NỐI ẢNH và cấp quyền đọc ghi cho hệ thống
+# Tạo thư mục, liên kết ảnh và cấp quyền
 RUN mkdir -p /var/www/html/public/uploads/avatars \
     && php artisan storage:link \
     && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache /var/www/html/public/uploads
 
-# Báo cho Railway biết ứng dụng chạy ở cổng 80
-EXPOSE 80
+# =========================================================================
+# TUYỆT CHIÊU: CHẠY BẰNG MÁY CHỦ CỦA LARAVEL ĐỂ NÉ HOÀN TOÀN LỖI APACHE
+# Railway sẽ cấp một biến môi trường $PORT, ta ép Laravel chạy trên cổng đó
+# =========================================================================
+CMD php artisan serve --host=0.0.0.0 --port=$PORT
