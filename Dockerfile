@@ -1,12 +1,7 @@
-# Sử dụng PHP 7.2 bản ổn định nhất
-FROM php:7.2-apache
+# Nâng cấp nhẹ lên PHP 7.4 để có chìa khóa bảo mật thế hệ mới
+FROM php:7.4-apache
 
-# Cập nhật đường dẫn tải phần mềm sang kho lưu trữ cũ
-RUN echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.list \
-    && echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list \
-    && echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until
-
-# Cài đặt các phần mềm phụ trợ & Database
+# Cài đặt các phần mềm phụ trợ & Database (Code gọn hơn vì PHP 7.4 không bị lỗi kho lưu trữ)
 RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
     && docker-php-ext-install pdo_mysql gd zip
 
