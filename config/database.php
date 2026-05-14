@@ -52,6 +52,10 @@ return [
             'prefix' => '',
             'strict' => false,
             'engine' => null,
+            // THÊM ĐOẠN NÀY VÀO ĐỂ ÉP CHỮ IN THƯỜNG:
+            'options' => [
+                PDO::ATTR_CASE => PDO::CASE_LOWER,
+            ],
         ],
 
         'pgsql' => [
