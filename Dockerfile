@@ -1,7 +1,7 @@
 # Sử dụng PHP 7.2 bản ổn định nhất
 FROM php:7.2-apache
 
-# Cập nhật đường dẫn tải phần mềm sang kho lưu trữ cũ (Sửa lỗi 404 Debian)
+# Cập nhật đường dẫn tải phần mềm sang kho lưu trữ cũ
 RUN echo "deb http://archive.debian.org/debian buster main" > /etc/apt/sources.list \
     && echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list \
     && echo "Acquire::Check-Valid-Until \"false\";" > /etc/apt/apt.conf.d/99no-check-valid-until
@@ -31,14 +31,10 @@ ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
 RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
+# Báo cho hệ thống biết web chạy ở cổng 80
+EXPOSE 80
+
 # ==============================================================================
-# BÍ KÍP TỐI THƯỢNG (Khởi động Runtime)
-# 1. Ép vô hiệu hóa mpm_event & mpm_worker, sau đó ép bật mpm_prefork
-# 2. Tự động lắng nghe đúng PORT mà Railway cấp phát
-# 3. Khởi động Apache
+# BÍ KÍP TỰ ĐỘNG HÓA: TỰ CHẠY MIGRATION RỒI MỚI BẬT WEB
 # ==============================================================================
-CMD a2dismod mpm_event mpm_worker || true; \
-    a2enmod mpm_prefork || true; \
-    sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf \
-    && sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf \
-    && apache2-foreground
+CMD php artisan migrate --force && apache2-foreground
