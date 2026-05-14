@@ -35,6 +35,10 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 EXPOSE 80
 
 # ==============================================================================
-# BÍ KÍP TỰ ĐỘNG HÓA: TỰ CHẠY MIGRATION RỒI MỚI BẬT WEB
+# COMBO CHỐT HẠ: Xóa Cache cũ -> Tạo Bảng DB -> Mở Cổng Railway -> Bật Web
 # ==============================================================================
-CMD php artisan migrate --force && apache2-foreground
+CMD php artisan config:clear \
+    && php artisan migrate --force \
+    && sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf \
+    && sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf \
+    && apache2-foreground
