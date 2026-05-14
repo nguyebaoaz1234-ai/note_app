@@ -8,6 +8,11 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 # Bật tính năng điều hướng
 RUN a2enmod rewrite
 
+# Tiêu diệt MPM thừa để tránh lỗi Crash
+RUN rm -f /etc/apache2/mods-enabled/mpm_event.* \
+    && rm -f /etc/apache2/mods-enabled/mpm_worker.* \
+    && a2enmod mpm_prefork
+
 # Thiết lập thư mục làm việc và Copy code
 WORKDIR /var/www/html
 COPY . /var/www/html
@@ -27,16 +32,14 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # ==============================================================================
-# KỊCH BẢN BẤT TỬ: Diệt MPM bằng lệnh chính quy + Ép IPv4 trên cổng ngẫu nhiên/80
+# BÍ KÍP CHỐNG LẠC ĐƯỜNG: Bắt cổng động của Railway thay vì ép cổng 80
 # ==============================================================================
 RUN echo '#!/bin/bash\n\
 php artisan config:clear\n\
 php artisan migrate --force\n\
-a2dismod mpm_event mpm_worker || true\n\
-a2enmod mpm_prefork || true\n\
 echo "ServerName localhost" >> /etc/apache2/apache2.conf\n\
-sed -i "s/Listen 80/Listen 0.0.0.0:${PORT:-80}/g" /etc/apache2/ports.conf\n\
-sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf\n\
+sed -i "s/Listen 80/Listen ${PORT:-8080}/g" /etc/apache2/ports.conf\n\
+sed -i "s/:80/:${PORT:-8080}/g" /etc/apache2/sites-available/000-default.conf\n\
 exec apache2-foreground' > /start.sh && chmod +x /start.sh
 
 CMD ["/start.sh"]
