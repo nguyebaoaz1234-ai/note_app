@@ -1,4 +1,4 @@
-# Nâng cấp lên PHP 7.4 để tương thích Database
+# Nâng cấp lên PHP 7.4
 FROM php:7.4-apache
 
 # Cài đặt các phần mềm phụ trợ
@@ -7,6 +7,9 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 
 # Bật tính năng điều hướng
 RUN a2enmod rewrite
+
+# Sửa lỗi cảnh báo ServerName của Apache
+RUN echo "ServerName localhost" >> /etc/apache2/apache2.conf
 
 # Thiết lập thư mục làm việc và Copy code
 WORKDIR /var/www/html
@@ -27,17 +30,16 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
 RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
 # ==============================================================================
-# KỊCH BẢN BẤT TỬ: Xóa vật lý Zombie MPM + Bắt đúng cổng ngầm của Railway
+# BÍ KÍP CHỐNG LẠC ĐƯỜNG: Ghi đè tuyệt đối cổng mạng để khớp 100% với Railway
 # ==============================================================================
 RUN echo '#!/bin/bash\n\
 php artisan config:clear\n\
 php artisan migrate --force\n\
 rm -f /etc/apache2/mods-enabled/mpm_event.*\n\
 rm -f /etc/apache2/mods-enabled/mpm_worker.*\n\
-a2enmod mpm_prefork\n\
-echo "ServerName localhost" >> /etc/apache2/apache2.conf\n\
-sed -i "s/Listen 80/Listen 0.0.0.0:${PORT:-8080}/g" /etc/apache2/ports.conf\n\
-sed -i "s/:80/:${PORT:-8080}/g" /etc/apache2/sites-available/000-default.conf\n\
+a2enmod mpm_prefork || true\n\
+echo "Listen 0.0.0.0:${PORT:-80}" > /etc/apache2/ports.conf\n\
+sed -i "s/<VirtualHost .*/<VirtualHost \*:${PORT:-80}>/g" /etc/apache2/sites-available/000-default.conf\n\
 exec apache2-foreground' > /start.sh && chmod +x /start.sh
 
 CMD ["/start.sh"]
