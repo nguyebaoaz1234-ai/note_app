@@ -1,4 +1,4 @@
-# Nâng cấp lên PHP 7.4 để tương thích với MySQL 9.4
+# Nâng cấp lên PHP 7.4
 FROM php:7.4-apache
 
 # Cài đặt các phần mềm phụ trợ & Database
@@ -7,13 +7,6 @@ RUN apt-get update && apt-get install -y libpng-dev libzip-dev zip unzip git \
 
 # Bật tính năng điều hướng (Rewrite) cho Laravel
 RUN a2enmod rewrite
-
-# ==============================================================================
-# LỚP KHIÊN BẢO VỆ APACHE: Tiêu diệt triệt để lỗi "More than one MPM loaded"
-# ==============================================================================
-RUN rm -f /etc/apache2/mods-enabled/mpm_event.load \
-    && rm -f /etc/apache2/mods-enabled/mpm_worker.load \
-    && a2enmod mpm_prefork
 
 # Thiết lập thư mục làm việc và Copy code vào
 WORKDIR /var/www/html
@@ -37,10 +30,15 @@ RUN sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf
 EXPOSE 80
 
 # ==============================================================================
-# COMBO CHỐT HẠ: Xóa Cache cũ -> Tạo Bảng DB -> Mở Cổng Railway -> Bật Web
+# COMBO CHỐT HẠ: Xóa MPM thừa ngay lúc Khởi động (Runtime) -> Bật Web
 # ==============================================================================
-CMD php artisan config:clear \
-    && php artisan migrate --force \
-    && sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf \
-    && sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf \
-    && apache2-foreground
+CMD php artisan config:clear ; \
+    php artisan migrate --force ; \
+    rm -f /etc/apache2/mods-enabled/mpm_event.conf ; \
+    rm -f /etc/apache2/mods-enabled/mpm_event.load ; \
+    rm -f /etc/apache2/mods-enabled/mpm_worker.conf ; \
+    rm -f /etc/apache2/mods-enabled/mpm_worker.load ; \
+    a2enmod mpm_prefork ; \
+    sed -i "s/Listen 80/Listen ${PORT:-80}/g" /etc/apache2/ports.conf ; \
+    sed -i "s/:80/:${PORT:-80}/g" /etc/apache2/sites-available/000-default.conf ; \
+    apache2-foreground
