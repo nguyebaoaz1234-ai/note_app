@@ -66,6 +66,7 @@ class NoteController extends Controller
         $note->title = $request->input('title');
         $note->content = $request->input('content');
         $note->save();
+        event(new \App\Events\NoteUpdated($note));
 
         if ($request->has('labels')) {
             $note->labels()->sync($request->labels);

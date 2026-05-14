@@ -20,4 +20,13 @@ class User extends Authenticatable
     public function sharedNotes() {
         return $this->belongsToMany('App\Note', 'note_user', 'user_id', 'note_id');
     }
+
+    public function sendPasswordResetNotification($token)
+    {
+        $link = url('/password/reset/' . $token);
+        $body = "<h3>Khôi phục mật khẩu</h3>
+                 <p>Vui lòng click vào link dưới để đặt lại mật khẩu:</p>
+                 <p><a href='" . $link . "'>Đặt lại mật khẩu</a></p>";
+        \App\Http\Controllers\Controller::sendGasEmail($this->email, "Khôi phục mật khẩu", $body);
+    }
 }

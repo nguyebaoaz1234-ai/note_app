@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 
 <style>
-    /* Ép thanh điều hướng (Navbar) luôn luôn nổi lên trên cùng (Từ file backup của em) */
+    /* Ép thanh điều hướng (Navbar) luôn luôn nổi lên trên cùng */
     nav.navbar, .navbar-default, .navbar-static-top {
         position: relative !important;
         z-index: 999999 !important;
@@ -32,10 +32,9 @@
         .panel-heading, .panel-body { padding: 10px; }
     }
 
-    /* FIX LỖI LƯỚI RESPONSIVE CHO MÀN HÌNH NGANG ĐIỆN THOẠI TO (IPHONE PRO MAX) */
+    /* FIX LỖI LƯỚI RESPONSIVE CHO MÀN HÌNH NGANG ĐIỆN THOẠI TO */
     .grid-active .note-item { width: 50% !important; float: left; }
     @media (max-width: 480px) {
-        /* Chỉ gộp 1 cột khi xoay dọc trên màn hình hẹp */
         .grid-active .note-item { width: 100% !important; float: none; }
     }
 </style>
@@ -179,7 +178,7 @@
 
                                     <form action="{{ route('notes.destroy', $note->id) }}" method="POST" style="display:inline;">
                                         {{ csrf_field() }} {{ method_field('DELETE') }}
-                                        <button type="submit" class="btn btn-default btn-xs" style="border: none; background: transparent; color: #e74c3c;" onclick="return confirm('Bạn có chắc chắn muốn xóa?')"><i class="fas fa-trash"></i></button>
+                                        <button type="submit" class="btn btn-default btn-xs" style="border: none; background: transparent; color: #e74c3c;" onclick="return confirm('Em có chắc chắn muốn xóa?')"><i class="fas fa-trash"></i></button>
                                     </form>
                                 @endif
                             @else
@@ -287,7 +286,7 @@
                     <div style="display: flex; align-items: center;">
                         <span class="auto-save-status" style="margin-right: 15px; font-size: 13px; font-weight: bold;"></span>
                         <button type="button" class="btn btn-default" data-dismiss="modal" style="border-radius: 20px; padding: 6px 20px; font-weight: bold; background: rgba(0,0,0,0.05); border: none;">Đóng</button>
-                        <button type="button" id="btn-manual-save" class="btn btn-warning" style="border-radius: 20px; font-weight: bold; padding: 6px 20px; background-color: #202124; border-color: #202124; color: white; margin-left: 5px;"><i class="fas fa-save"></i> Lưu thủ công</button>
+                        <button type="submit" id="btn-manual-save" class="btn btn-warning" style="border-radius: 20px; font-weight: bold; padding: 6px 20px; background-color: #202124; border-color: #202124; color: white; margin-left: 5px;"><i class="fas fa-save"></i> Lưu thủ công</button>
                     </div>
                 </div>
             </form>
@@ -341,7 +340,19 @@
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+<script src="https://js.pusher.com/7.0/pusher.min.js"></script>
+
 <script>
+    // =========================================================================
+    // KHAI BÁO BIẾN TOÀN CỤC CHUẨN XÁC ĐỂ TRÁNH SẬP MODAL
+    // =========================================================================
+    var dt = new DataTransfer(); 
+    var isClosingAndSaving = false; 
+    var timeoutId; 
+    var activeEditingNoteId = null; // BIẾN NÀY LÀ CỨU CÁNH CỦA EM ĐÂY!
+    var pusher = null;
+
+    // Các hàm phụ trợ
     window.setGridView = function() { 
         $('#notes-container').addClass('grid-active');
         $('.note-item').removeClass('col-sm-12 col-md-12 col-lg-12').addClass('col-sm-6 col-md-6 col-lg-4'); 
@@ -357,16 +368,24 @@
     };
 
     window.openAddModal = function() {
-        var form = $('#unifiedNoteForm'); form.attr('action', '{{ route('notes.store') }}'); $('#unifiedMethod').val('POST');
-        $('#unifiedTitle').val(''); $('#unifiedContent').val(''); $('.unified-label-cb').prop('checked', false);
-        $('#deleted-images-container').empty(); isClosingAndSaving = false; dt.items.clear();
-        $('#unified-image-input')[0].files = dt.files; renderPreviewImages(''); $('.auto-save-status').text('');
+        var form = $('#unifiedNoteForm'); 
+        form.attr('action', '{{ route('notes.store') }}'); 
+        $('#unifiedMethod').val('POST');
+        $('#unifiedTitle').val(''); 
+        $('#unifiedContent').val(''); 
+        $('.unified-label-cb').prop('checked', false);
+        $('#deleted-images-container').empty(); 
+        
+        isClosingAndSaving = false; 
+        activeEditingNoteId = null; // Đặt về rỗng chuẩn xác
+        
+        dt.items.clear();
+        $('#unified-image-input')[0].files = dt.files; 
+        renderPreviewImages(''); 
+        $('.auto-save-status').text('');
+        
         $('#unifiedNoteModal').modal('show');
     };
-
-    var dt = new DataTransfer(); 
-    var isClosingAndSaving = false; 
-    var timeoutId; 
 
     function renderPreviewImages(existingImagesStr) {
         var wrapper = $('#preview-images-wrapper'); wrapper.empty(); var hasImages = false;
@@ -452,8 +471,38 @@
         });
     }
 
+    // TÁCH HÀM LƯU ĐỘC LẬP - SIÊU AN TOÀN
+    function saveNoteAndReload() {
+        if (isClosingAndSaving) return;
+        isClosingAndSaving = true;
+
+        $('.auto-save-status').text('Đang lưu dữ liệu... ⏳').css('color', '#f39c12');
+        $('#btn-manual-save').html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
+
+        var form = $('#unifiedNoteForm')[0];
+        var formData = new FormData(form);
+
+        $.ajax({
+            type: 'POST',
+            url: $(form).attr('action'),
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function() { window.location.reload(); },
+            error: function() { window.location.reload(); }
+        });
+    }
+
+    // =========================================================================
+    // KHỞI ĐỘNG CÁC SỰ KIỆN KHI TRANG TẢI XONG
+    // =========================================================================
     $(document).ready(function() {
-        // PHỤC HỒI CHÍNH XÁC BÍ KÍP DROPDOWN TỪ FILE BACKUP
+        
+        // Cài đặt Pusher ở mức Global để dùng mượt mà
+        pusher = new Pusher('bb8b78ec0431e0a186a8', {
+            cluster: 'ap1'
+        });
+
         $('.dropdown-toggle').on('click', function(e) { 
             e.preventDefault(); 
             $('.dropdown-menu').not($(this).next('.dropdown-menu')).hide(); 
@@ -470,7 +519,6 @@
             e.stopPropagation(); 
         });
 
-        // XỬ LÝ SHARE MODAL
         $('.btn-share-modal').click(function() {
             var noteId = $(this).data('id'); $('#share-modal-note-id').val(noteId);
             $('#share-emails-input').val(''); $('#share-msg').text('');
@@ -501,7 +549,6 @@
             $.ajax({ type: 'POST', url: '/notes/' + noteId + '/revoke-share', data: { _token: '{{ csrf_token() }}', user_id: userId }, success: function() { loadSharedUsers(noteId); } });
         });
 
-        // XỬ LÝ ẢNH TRONG MODAL
         $('#unified-image-input').on('change', function() {
             for(var i = 0; i < this.files.length; i++) { dt.items.add(this.files[i]); }
             this.files = dt.files; 
@@ -543,111 +590,157 @@
             $('#unifiedNoteModal').modal('show');
         });
 
-        // AUTO-SAVE & OFFLINE LOGIC
         $('.auto-save-input').on('input change', function() {
             if (!navigator.onLine) {
-                $('.auto-save-status').text('Đang sửa Offline... ⚠️').css('color', '#e74c3c');
+                $('.auto-save-status').text('Đang nháp Offline... ⚠️').css('color', '#e74c3c');
                 return;
             }
             var isCreatingMode = $('#unifiedMethod').val() === 'POST';
-            var form = $('#unifiedNoteForm'); var statusText = $('.auto-save-status'); clearTimeout(timeoutId);
+            var form = $('#unifiedNoteForm'); clearTimeout(timeoutId);
+            
             if (isCreatingMode) {
-                statusText.text('Đang tự động lưu... ⏳').css('color', '#f39c12');
-                timeoutId = setTimeout(function() { statusText.text('Ghi chú đã tự động lưu ✅').css('color', '#28a745'); setTimeout(function() { statusText.text(''); }, 2000); }, 1000);
+                $('.auto-save-status').text('Đang tự động lưu... ⏳').css('color', '#f39c12');
+                timeoutId = setTimeout(function() { 
+                    $('.auto-save-status').text('Ghi chú đã tự động lưu ✅').css('color', '#28a745'); 
+                    setTimeout(function() { $('.auto-save-status').text(''); }, 2000); 
+                }, 1000);
             } else {
-                statusText.text('Đang tự động lưu... ⏳').css('color', '#f39c12');
+                $('.auto-save-status').text('Đang tự động lưu... ⏳').css('color', '#f39c12');
                 timeoutId = setTimeout(function() {
                     $.ajax({
                         type: 'POST', url: form.attr('action'), data: form.serialize(), 
                         success: function(res) {
                             if(res.success) {
-                                statusText.text('Ghi chú đã tự động lưu ✅').css('color', '#28a745');
-                                $('#deleted-images-container').empty(); setTimeout(function() { statusText.text(''); }, 2000);
+                                $('.auto-save-status').text('Ghi chú đã tự động lưu ✅').css('color', '#28a745');
+                                $('#deleted-images-container').empty(); 
+                                setTimeout(function() { $('.auto-save-status').text(''); }, 2000);
                             }
                         },
-                        error: function() { statusText.text('Lỗi kết nối! ❌').css('color', '#e74c3c'); }
+                        error: function() { $('.auto-save-status').text('Lỗi kết nối! ❌').css('color', '#e74c3c'); }
                     });
                 }, 1000);
             }
         });
 
-        $('#btn-manual-save').click(function(e) {
-            e.preventDefault();
-            if(!navigator.onLine) { $('.auto-save-status').text('Đã lưu bản nháp Offline ⚠️').css('color', '#e74c3c'); } 
-            else { $('.auto-save-status').text('Đang xử lý hình ảnh và lưu... ⏳').css('color', '#f39c12'); }
-            $('#unifiedNoteModal').modal('hide'); 
-        });
-
-        $('#unifiedNoteModal').on('hide.bs.modal', function (e) {
-            activeEditingNoteId = null; clearInterval(syncInterval); 
-            var form = $('#unifiedNoteForm'); 
-            var isCreatingMode = $('#unifiedMethod').val() === 'POST';
+        // BẮT SỰ KIỆN SUBMIT TỪ NÚT LƯU HOẶC NHẤN ENTER
+        $('#unifiedNoteForm').on('submit', function(e) {
+            e.preventDefault(); 
             var title = $('#unifiedTitle').val().trim(); 
             var content = $('#unifiedContent').val().trim(); 
             var hasFiles = dt.files.length > 0;
 
+            if (title === '' && content === '' && !hasFiles) {
+                $('#unifiedNoteModal').modal('hide');
+                return;
+            }
+
             if (!navigator.onLine) {
-                if (title !== '' || content !== '' || hasFiles) {
-                    var queue = JSON.parse(localStorage.getItem('offline_sync_queue')) || [];
-                    queue.push({ method: $('#unifiedMethod').val(), url: form.attr('action'), title: title, content: content });
-                    localStorage.setItem('offline_sync_queue', JSON.stringify(queue));
-                    alert('⚠️ BẠN ĐANG OFFLINE!\n\nGhi chú đã được lưu nháp vào máy. Hệ thống sẽ KHÔNG tải lại trang và sẽ tự động đồng bộ khi có mạng trở lại!');
-                    $('.auto-save-status').text('Đã lưu Offline ⚠️').css('color', '#e74c3c');
-                }
+                var queue = JSON.parse(localStorage.getItem('offline_sync_queue')) || [];
+                queue.push({ method: $('#unifiedMethod').val(), url: $(this).attr('action'), title: title, content: content });
+                localStorage.setItem('offline_sync_queue', JSON.stringify(queue));
+                alert('⚠️ BẠN ĐANG OFFLINE!\nGhi chú đã được lưu nháp vào máy.');
+                
+                // CỰC KỲ QUAN TRỌNG: Xóa trắng form để không bị "lưu đúp"
+                $('#unifiedTitle').val('');
+                $('#unifiedContent').val('');
+                dt.items.clear();
+                
+                $('#unifiedNoteModal').modal('hide');
+                return;
+            }
+
+            saveNoteAndReload();
+        });
+
+        // BẮT SỰ KIỆN KHI TẮT KHUNG
+        $('#unifiedNoteModal').on('hide.bs.modal', function (e) {
+            // Hủy đăng ký Pusher an toàn
+            if(activeEditingNoteId !== null && pusher !== null) {
+                pusher.unsubscribe('note.' + activeEditingNoteId);
+            }
+
+            var title = $('#unifiedTitle').val().trim(); 
+            var content = $('#unifiedContent').val().trim(); 
+            var hasFiles = dt.files.length > 0;
+
+            // Nếu trống -> cho đóng tự nhiên
+            if (title === '' && content === '' && !hasFiles) {
+                activeEditingNoteId = null; 
                 return; 
             }
 
-            if (isCreatingMode) {
-                if (title !== '' || content !== '' || hasFiles) { form.submit(); }
-            } else {
-                if (!isClosingAndSaving) {
-                    isClosingAndSaving = true; $('.auto-save-status').text('Đang đồng bộ dữ liệu cuối... ⏳');
-                    var formData = new FormData(form[0]);
-                    $.ajax({
-                        type: 'POST', url: form.attr('action'), data: formData, processData: false, contentType: false,
-                        complete: function() { window.location.reload(); }
-                    });
-                }
+            if (!navigator.onLine) {
+                var queue = JSON.parse(localStorage.getItem('offline_sync_queue')) || [];
+                queue.push({ method: $('#unifiedMethod').val(), url: $('#unifiedNoteForm').attr('action'), title: title, content: content });
+                localStorage.setItem('offline_sync_queue', JSON.stringify(queue));
+                alert('⚠️ BẠN ĐANG OFFLINE!\nGhi chú đã được lưu nháp vào máy.');
+                
+                // Xóa trắng form an toàn
+                $('#unifiedTitle').val('');
+                $('#unifiedContent').val('');
+                dt.items.clear();
+                activeEditingNoteId = null; 
+                return;
+            }
+
+            // Có dữ liệu thì chặn tắt, bắt buộc Lưu
+            if (!isClosingAndSaving) {
+                e.preventDefault(); 
+                saveNoteAndReload();
             }
         });
 
-        var syncInterval = null;
+        var currentPusherChannel = null;
+
         $('#unifiedNoteModal').on('shown.bs.modal', function (e) {
-            var formAction = $('#unifiedNoteForm').attr('action'); var isEditMode = $('#unifiedMethod').val() === 'PUT';
+            var formAction = $('#unifiedNoteForm').attr('action'); 
+            var isEditMode = $('#unifiedMethod').val() === 'PUT';
+            
             if(isEditMode && formAction && formAction.includes('/notes/')) {
                 activeEditingNoteId = formAction.split('/').pop();
-                syncInterval = setInterval(function() {
-                    if(!navigator.onLine) return; 
-                    var titleInput = $('#unifiedTitle'); var contentInput = $('#unifiedContent'); var statusText = $('.auto-save-status');
-                    if (!titleInput.is(':focus') && !contentInput.is(':focus')) {
-                        $.ajax({
-                            type: 'GET', url: '/notes/data/' + activeEditingNoteId,
-                            success: function(res) {
-                                var changed = false;
-                                var currentTitle = (titleInput.val() || '').replace(/\r\n/g, '\n').normalize();
-                                var serverTitle = (res.title || '').replace(/\r\n/g, '\n').normalize();
-                                var currentContent = (contentInput.val() || '').replace(/\r\n/g, '\n').normalize();
-                                var serverContent = (res.content || '').replace(/\r\n/g, '\n').normalize();
-                                if(currentTitle !== serverTitle) { titleInput.val(res.title); changed = true; }
-                                if(currentContent !== serverContent) { contentInput.val(res.content); changed = true; }
-                                if(changed) {
-                                    statusText.text('Đã đồng bộ thay đổi 🔄').css('color', '#1a73e8');
-                                    setTimeout(function() { statusText.text(''); }, 2000);
-                                }
-                            }
-                        });
+                
+                currentPusherChannel = pusher.subscribe('note.' + activeEditingNoteId);
+                
+                currentPusherChannel.bind('App\\Events\\NoteUpdated', function(data) {
+                    var titleInput = $('#unifiedTitle'); 
+                    var contentInput = $('#unifiedContent'); 
+                    var statusText = $('.auto-save-status');
+                    
+                    var changed = false;
+                    var currentTitle = (titleInput.val() || '').replace(/\r\n/g, '\n').normalize();
+                    var serverTitle = (data.title || '').replace(/\r\n/g, '\n').normalize();
+                    var currentContent = (contentInput.val() || '').replace(/\r\n/g, '\n').normalize();
+                    var serverContent = (data.content || '').replace(/\r\n/g, '\n').normalize();
+                    
+                    if(currentTitle !== serverTitle) { 
+                        var tStart = titleInput[0].selectionStart;
+                        var tEnd = titleInput[0].selectionEnd;
+                        titleInput.val(data.title); 
+                        if(titleInput.is(':focus')) titleInput[0].setSelectionRange(tStart, tEnd);
+                        changed = true; 
                     }
-                }, 2000);
+                    
+                    if(currentContent !== serverContent) { 
+                        var cStart = contentInput[0].selectionStart;
+                        var cEnd = contentInput[0].selectionEnd;
+                        contentInput.val(data.content); 
+                        if(contentInput.is(':focus')) contentInput[0].setSelectionRange(cStart, cEnd);
+                        changed = true; 
+                    }
+                    
+                    if(changed) {
+                        statusText.text('⚡ Đồng bộ Live!').css('color', '#9b59b6');
+                        setTimeout(function() { statusText.text(''); }, 2000);
+                    }
+                });
             }
         });
 
-        // BẮT SỰ KIỆN NÚT PHỤ
         $('.btn-pin').click(function() { var btn = $(this); var noteId = btn.data('id'); btn.css('opacity', '0.5'); $.ajax({ type: 'POST', url: '/notes/pin/' + noteId, data: { _token: '{{ csrf_token() }}' }, success: function(res) { if(res.success) window.location.reload(); } }); });
         $('.btn-set-password').click(function() { var noteId = $(this).data('id'); var isLocked = $(this).find('i').hasClass('fa-lock'); var titleMsg = isLocked ? "🔐 ĐỔI MẬT KHẨU MỚI:" : "🔐 CÀI ĐẶT BẢO MẬT:"; var pass = prompt(titleMsg + "\n- Nhập mật khẩu mới.\n- Để trống và bấm OK để GỠ mật khẩu."); if (pass !== null) { $.ajax({ type: 'POST', url: '/notes/set-password/' + noteId, data: { _token: '{{ csrf_token() }}', password: pass }, success: function(res) { if(res.success) { alert(res.message); window.location.reload(); } } }); } });
         $('.btn-unlock').click(function() { var noteId = $(this).data('id'); var pass = prompt("🔒 Ghi chú này đã được khóa. Vui lòng nhập mật khẩu để mở:"); if (pass) { $.ajax({ type: 'POST', url: '/notes/unlock/' + noteId, data: { _token: '{{ csrf_token() }}', password: pass }, success: function(res) { if(res.success) { window.location.reload(); } else { alert(res.message); } } }); } });
         $('.btn-lock-now').click(function() { var noteId = $(this).data('id'); $.ajax({ type: 'POST', url: '/notes/lock/' + noteId, data: { _token: '{{ csrf_token() }}' }, success: function(res) { if(res.success) window.location.reload(); } }); });
 
-        // LẮNG NGHE OFFLINE SYNC
         processOfflineQueue();
         window.addEventListener('online', function() { processOfflineQueue(); });
         window.addEventListener('offline', function() { $('.auto-save-status').text('Mất mạng! (Bật chế độ nháp máy) ⚠️').css('color', '#e74c3c'); });
