@@ -35,12 +35,27 @@ class HomeController extends Controller
                     $q->where('title', 'LIKE', '%' . $keyword . '%')->orWhere('content', 'LIKE', '%' . $keyword . '%');
                 });
             }
+
+            // ========================================================
+            // ĐÃ FIX BẰNG KỸ THUẬT SUB-QUERY WHEREIN (TƯƠNG THÍCH PHP 7.4)
+            // ========================================================
             if ($request->has('label_id') && $request->label_id != '') {
                 $label_id = $request->label_id;
-                $query->whereHas('labels', function($q) use ($label_id) {
-                    $q->where('labels.id', $label_id);
+                
+                // Lấy thông tin bảng trung gian tự động từ Model Note để an toàn tuyệt đối
+                $relation = (new \App\Note)->labels();
+                $pivotTable = $relation->getTable();
+                $foreignKey = $relation->getForeignPivotKeyName();
+                $relatedKey = $relation->getRelatedPivotKeyName();
+                
+                // Dùng whereIn lồng Sub-query thay cho whereHas bị lỗi của Laravel 5.6
+                $query->whereIn('id', function($q) use ($pivotTable, $foreignKey, $relatedKey, $label_id) {
+                    $q->select($foreignKey)
+                      ->from($pivotTable)
+                      ->where($relatedKey, $label_id);
                 });
             }
+
             // ĐÃ SỬA: Sắp xếp theo ưu tiên: Ghim -> Thời gian Ghim mới nhất -> Thời gian tạo mới nhất
             $notes = $query->orderBy('is_pinned', 'desc')
                            ->orderBy('pinned_at', 'desc')

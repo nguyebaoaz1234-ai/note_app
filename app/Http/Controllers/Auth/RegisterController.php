@@ -9,7 +9,6 @@ use Illuminate\Foundation\Auth\RegistersUsers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth; 
-// Đã xóa thư viện Http gây lỗi ở đây
 
 class RegisterController extends Controller
 {
@@ -43,25 +42,30 @@ class RegisterController extends Controller
         // 1. Dịch giao diện email thành mã HTML
         $htmlContent = view('emails.activation', ['link' => $activationLink])->render();
 
-        // 2. Đóng gói dữ liệu thành chuẩn JSON
+        // 2. Đóng gói dữ liệu thành chuẩn JSON (Đã chuẩn hóa key 'email')
         $postData = json_encode([
-            'to' => $data['email'],
+            'email' => $data['email'], 
             'subject' => 'Vui lòng kích hoạt tài khoản Ghi chú của bạn!',
             'body' => $htmlContent
         ]);
 
-        // 3. Cấu hình luồng bắn dữ liệu HTTP POST
+        // 3. Cấu hình luồng bắn dữ liệu HTTP POST và VƯỢT RÀO SSL
         $options = [
             'http' => [
                 'header'  => "Content-type: application/json\r\n",
                 'method'  => 'POST',
                 'content' => $postData,
+            ],
+            // THÊM ĐOẠN NÀY ĐỂ VƯỢT RÀO SSL TRÊN LOCALHOST
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
             ]
         ];
         $context  = stream_context_create($options);
 
-        // 4. Bắn dữ liệu thẳng sang Webhook của Google (Thêm @ để bỏ qua cảnh báo nếu mạng lag)
-        $gasUrl = env('GAS_MAIL_URL');
+        // 4. Bắn dữ liệu thẳng sang Webhook của Google (Đã chuẩn hóa tên biến môi trường)
+        $gasUrl = env('GAS_WEBHOOK_URL');
         if ($gasUrl) {
             @file_get_contents($gasUrl, false, $context);
         }

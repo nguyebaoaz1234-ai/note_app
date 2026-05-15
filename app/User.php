@@ -50,7 +50,8 @@ class User extends Authenticatable
                 </p>
             </div>
         </div>
-        HTML;
+HTML;
+// CHÚ Ý: Chữ HTML; ở trên bắt buộc phải dính sát lề trái, tuyệt đối không được thụt lùi vào.
 
         // 3. Chuẩn bị gói hàng (Data) gửi cho Google Apps Script
         $data = [
@@ -65,6 +66,11 @@ class User extends Authenticatable
                 'header'  => "Content-type: application/json\r\n",
                 'method'  => 'POST',
                 'content' => json_encode($data),
+            ],
+            // 5. Cấp quyền VƯỢT RÀO SSL CHO LOCALHOST
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
             ]
         ];
         
