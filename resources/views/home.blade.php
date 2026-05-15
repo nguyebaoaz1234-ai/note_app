@@ -476,7 +476,7 @@
         if (isClosingAndSaving) return;
         isClosingAndSaving = true;
 
-        $('.auto-save-status').text('Đang lưu dữ liệu... ⏳').css('color', '#f39c12');
+        $('.auto-save-status').text('Đang đóng ghi chú... ⏳').css('color', '#f39c12');
         $('#btn-manual-save').html('<i class="fas fa-spinner fa-spin"></i>').prop('disabled', true);
 
         var form = $('#unifiedNoteForm')[0];
