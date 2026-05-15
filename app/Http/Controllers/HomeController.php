@@ -37,22 +37,19 @@ class HomeController extends Controller
             }
 
             // ========================================================
-            // ĐÃ FIX BẰNG KỸ THUẬT SUB-QUERY WHEREIN (TƯƠNG THÍCH PHP 7.4)
+            // ĐÃ FIX: DÙNG CHUẨN LARAVEL 5.6 (KHÔNG DÙNG HÀM PHIÊN BẢN MỚI)
             // ========================================================
             if ($request->has('label_id') && $request->label_id != '') {
                 $label_id = $request->label_id;
                 
-                // Lấy thông tin bảng trung gian tự động từ Model Note để an toàn tuyệt đối
-                $relation = (new \App\Note)->labels();
-                $pivotTable = $relation->getTable();
-                $foreignKey = $relation->getForeignPivotKeyName();
-                $relatedKey = $relation->getRelatedPivotKeyName();
+                // Lấy tên bảng trung gian (thường là label_note)
+                $pivotTable = (new \App\Note)->labels()->getTable();
                 
-                // Dùng whereIn lồng Sub-query thay cho whereHas bị lỗi của Laravel 5.6
-                $query->whereIn('id', function($q) use ($pivotTable, $foreignKey, $relatedKey, $label_id) {
-                    $q->select($foreignKey)
+                // Dùng whereIn với các cột chuẩn mặc định của Laravel 5.6 (note_id và label_id)
+                $query->whereIn('notes.id', function($q) use ($pivotTable, $label_id) {
+                    $q->select('note_id')
                       ->from($pivotTable)
-                      ->where($relatedKey, $label_id);
+                      ->where('label_id', $label_id);
                 });
             }
 
